@@ -1,13 +1,13 @@
-import 'dart:io';
+// 路徑: lib/pages/common/file_management.dart
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_file/open_file.dart';
-
+import 'package:open_filex/open_filex.dart'; // 確保 pubspec.yaml 有加 open_filex
 import '../../services/file_service.dart';
 import '../../services/local_storage.dart';
 import '../../models/course_model.dart';
-import '../../services/api_service.dart'; // Import ApiService to get courses
+import '../../services/api_service.dart';
 
 class FileManagementPage extends StatefulWidget {
   const FileManagementPage({super.key});
@@ -76,8 +76,8 @@ class _FileManagementPageState extends State<FileManagementPage> {
     }
 
     setState(() => _isUploading = true);
-
     final user = await LocalStorage.getUserInfo();
+
     for (var file in _selectedFiles) {
       if (file.path == null) continue;
       await _fileService.uploadFile(
@@ -161,8 +161,7 @@ class _FileManagementPageState extends State<FileManagementPage> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Corrected: Removed unnecessary braces from string interpolation.
-          Text("$_selectedFiles.length file(s) selected:", style: const TextStyle(color: Colors.grey)),
+          Text("${_selectedFiles.length} file(s) selected:", style: const TextStyle(color: Colors.grey)),
           const SizedBox(height: 8),
           SizedBox(
             height: 40,
@@ -256,7 +255,7 @@ class _FileManagementPageState extends State<FileManagementPage> {
             final result = await _fileService.downloadToPrivateDirectory(file['file_url'], fileName);
             if (mounted) {
               if (result['success']) {
-                OpenFile.open(result['path']);
+                OpenFilex.open(result['path']);
                 _showSnackBar('Downloaded. Opening file...', isError: false);
               } else {
                 _showSnackBar('Download failed: ${result['error']}', isError: true);

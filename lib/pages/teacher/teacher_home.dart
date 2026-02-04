@@ -1,16 +1,21 @@
+// 路徑: lib/pages/teacher/teacher_home.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../providers/language_provider.dart';
 import '../../models/member_model.dart';
 import '../../services/local_storage.dart';
-import '../../services/api_service.dart'; // 引入 API 服務
+import '../../services/api_service.dart';
+
+// --- 正確的 import ---
 import '../common/profile_page.dart';
 import 'create_course_page.dart';
-import 'course_management.dart'; 
-import 'assignment_management.dart';
-import '../common/file_management.dart';
+import 'course_management.dart'; // 這是管理課程的頁面
+import 'assignment_management.dart'; // 這是管理作業的頁面
 import 'live_history.dart';
+import '../common/file_management.dart'; // 這是檔案管理頁面
 
 class TeacherHomePage extends StatefulWidget {
   const TeacherHomePage({super.key});
@@ -22,16 +27,15 @@ class TeacherHomePage extends StatefulWidget {
 class _TeacherHomePageState extends State<TeacherHomePage> {
   int _currentIndex = 0;
   TeacherProfile? _profile;
-  double _totalEarnings = 0.0; // 存儲計算後的收入
-  
-  // MediaPipe 直播頁面 URL
+  double _totalEarnings = 0.0;
+
   static const String _mediaPipeUrl = 'https://d2kry3pmi7k9be.cloudfront.net/MediaPipe.html';
 
   final List<Widget> _pages = [
-    const SizedBox(), 
-    const CourseManagementPage(),
-    const AssignmentManagementPage(),
-    const FileManagementPage(),
+    const SizedBox(), // Dashboard
+    const CourseManagementPage(),     // 這裡現在應該沒問題了
+    const AssignmentManagementPage(), // 這裡也沒問題了
+    const FileManagementPage(),       // 這裡也沒問題了
   ];
 
   @override
@@ -44,7 +48,6 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
     final info = await LocalStorage.getUserInfo();
     final mId = info['mId'] ?? '';
     
-    // 計算真實收入
     double earnings = 0.0;
     if (mId.isNotEmpty) {
       final coursesData = await ApiService.getTeacherCourses(mId);
@@ -54,7 +57,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
         earnings += (price * students);
       }
     }
-
+    
     if (mounted) {
       setState(() {
         _totalEarnings = earnings;
@@ -64,19 +67,16 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           nName: info['nName'] ?? '',
           email: info['email'] ?? '',
           mType: 'TEACHER',
-          address: 'Hong Kong',
-          tel: 0,
+          address: info['address'] ?? 'N/A',
+          tel: int.tryParse(info['tel'] ?? '0') ?? 0,
         );
       });
     }
   }
 
-  /// 打開 MediaPipe 直播頁面
   Future<void> _launchMediaPipe() async {
     final uri = Uri.parse(_mediaPipeUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cannot open the live page')),
@@ -102,7 +102,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.video_library_outlined), selectedIcon: Icon(Icons.video_library), label: 'Courses'),
           NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment), label: 'Tasks'),
-          NavigationDestination(icon: Icon(Icons.folder_open), selectedIcon: Icon(Icons.folder), label: 'Files'),
+          NavigationDestination(icon: Icon(Icons.folder_open_outlined), selectedIcon: Icon(Icons.folder), label: 'Files'),
         ],
       ),
       floatingActionButton: _currentIndex == 1 ? FloatingActionButton.extended(
@@ -130,34 +130,21 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                     Text(_profile?.fName ?? 'Teacher', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                   ],
                 ),
-                Row(
-                  children: [
-                    IconButton(icon: const Icon(Icons.language), onPressed: () => lang.toggleLanguage()),
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(member: _profile!))),
-                      child: CircleAvatar(
-                        backgroundColor: const Color(0xFF6366F1),
-                        child: Text(_profile?.fName[0] ?? 'T', style: const TextStyle(color: Colors.white)),
-                      ),
-                    ),
-                  ],
-                )
+                InkWell(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(member: _profile!))),
+                  child: CircleAvatar(
+                    backgroundColor: const Color(0xFF6366F1),
+                    child: Text(_profile?.fName[0] ?? 'T', style: const TextStyle(color: Colors.white)),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 30),
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF818CF8)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF818CF8)]),
                 borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(color: const Color(0xFF6366F1).withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6)),
-                ],
               ),
               child: Row(
                 children: [
@@ -166,8 +153,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                     children: [
                       const Text("Total Earnings", style: TextStyle(color: Colors.white70)),
                       const SizedBox(height: 8),
-                      // 顯示計算後的真實收入
-                      Text("\$ ${_totalEarnings.toStringAsFixed(2)}", style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                      Text("HK\$ ${_totalEarnings.toStringAsFixed(2)}", style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const Spacer(),
@@ -178,7 +164,6 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
             const SizedBox(height: 30),
             Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800])),
             const SizedBox(height: 16),
-            
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -214,7 +199,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
               child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(height: 12),

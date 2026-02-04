@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/course_model.dart';
 import '../../services/api_service.dart';
 import '../../services/local_storage.dart';
+import 'teacher_course_content_page.dart'; // 確保這個檔案存在
 
 class CourseManagementPage extends StatefulWidget {
   const CourseManagementPage({super.key});
@@ -21,6 +22,7 @@ class _CourseManagementPageState extends State<CourseManagementPage> {
   }
 
   Future<void> _loadTeacherCourses() async {
+    setState(() => _isLoading = true);
     final user = await LocalStorage.getUserInfo();
     final mId = user['mId'];
     
@@ -34,6 +36,35 @@ class _CourseManagementPageState extends State<CourseManagementPage> {
       }
     } else {
        if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // --- [關鍵修正] 新增刪除邏輯 ---
+  Future<void> _deleteCourse(Course course) async {
+    bool confirm = await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Deletion"),
+        content: Text("Are you sure you want to delete '${course.title}'? This action cannot be undone."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Delete", style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    ) ?? false;
+
+    if (confirm) {
+      setState(() => _isLoading = true); // 顯示 Loading
+      bool success = await ApiService.deleteCourse(course.id);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(success ? "Course deleted successfully" : "Failed to delete course"),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ));
+        // 重新載入列表以刷新 UI
+        await _loadTeacherCourses(); 
+      }
     }
   }
 
@@ -52,16 +83,93 @@ class _CourseManagementPageState extends State<CourseManagementPage> {
               : RefreshIndicator(
                   onRefresh: _loadTeacherCourses,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(16),
                     itemCount: _myCourses.length,
                     itemBuilder: (context, index) {
-                      return _buildCourseCard(_myCourses[index]);
+                      final course = _myCourses[index];
+                      // --- [關鍵修正] 將 Card 改為 InkWell + Card ---
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        clipBehavior: Clip.antiAlias, // 讓 InkWell 的波紋效果在圓角內
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context, 
+                              MaterialPageRoute(builder: (_) => TeacherCourseContentPage(course: course))
+                            ).then((_) => _loadTeacherCourses()); // 從內容頁回來後刷新
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 0, 16), // 調整 padding 給 PopupMenuButton 留空間
+                            child: _buildCourseCardContent(course),
+                          ),
+                        ),
+                      );
                     },
                   ),
                 ),
     );
   }
 
+  // --- [重構] 將 Card 內容提取出來 ---
+  Widget _buildCourseCardContent(Course course) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 60, height: 60,
+              decoration: BoxDecoration(
+                color: Colors.blue.withAlpha(25),
+                borderRadius: BorderRadius.circular(12),
+                image: course.coverImage != null 
+                  ? DecorationImage(image: NetworkImage(course.coverImage!), fit: BoxFit.cover) 
+                  : null,
+              ),
+              child: course.coverImage == null ? const Icon(Icons.school, color: Colors.blue) : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(course.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text("Price: HK\$ ${course.price.toStringAsFixed(0)}", style: TextStyle(color: Colors.grey[600])),
+                ],
+              ),
+            ),
+            // --- [關鍵修正] PopupMenuButton 放在 Row 裡面 ---
+            PopupMenuButton(
+              icon: const Icon(Icons.more_vert, color: Colors.grey),
+              onSelected: (value) {
+                if (value == 'delete') {
+                  _deleteCourse(course);
+                } else if (value == 'edit') {
+                  // TODO: 實作編輯課程資訊的功能
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Edit Info')])),
+                const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Delete Course')])),
+              ],
+            ),
+          ],
+        ),
+        const Divider(height: 32),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildStatColumn("Students", course.studentCount.toString(), Icons.people, Colors.green),
+            _buildStatColumn("Lessons", course.totalLesson.toString(), Icons.list_alt, Colors.orange),
+            _buildStatColumn("Revenue", "HK\$${(course.price * course.studentCount).toStringAsFixed(0)}", Icons.monetization_on, Colors.blue),
+          ],
+        ),
+      ],
+    );
+  }
+  
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -75,79 +183,11 @@ class _CourseManagementPageState extends State<CourseManagementPage> {
           ),
           const SizedBox(height: 8),
           const Text(
-            "Tap the '+' button to create your first course.",
+            "Tap the '+' button in the bottom navigation to create one.",
+            textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildCourseCard(Course course) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6366F1).withValues(alpha: 0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    image: course.coverImage != null 
-                        ? DecorationImage(image: NetworkImage(course.coverImage!), fit: BoxFit.cover) 
-                        : null,
-                  ),
-                  child: course.coverImage == null ? const Icon(Icons.school, color: Colors.blue) : null,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(course.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 4),
-                      Text("Price: \$${course.price.toStringAsFixed(0)}", style: TextStyle(color: Colors.grey[600])),
-                    ],
-                  ),
-                ),
-                PopupMenuButton(
-                  icon: const Icon(Icons.more_vert, color: Colors.grey),
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit Info')),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete Course')),
-                  ],
-                  onSelected: (value) { /* Handle actions */ },
-                ),
-              ],
-            ),
-            const Divider(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatColumn("Students", course.studentCount.toString(), Icons.people, Colors.green),
-                _buildStatColumn("Lessons", course.totalLesson.toString(), Icons.list_alt, Colors.orange),
-                _buildStatColumn("Revenue", "\$${(course.price * course.studentCount).toStringAsFixed(0)}", Icons.monetization_on, Colors.blue),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
+// 路徑: lib/models/course_model.dart
+
 class Course {
-  // --- 資料庫對應欄位 ---
   final String id;          // DB: cId
   final String title;       // DB: cName
   final double price;       // DB: unitPrice
@@ -7,17 +8,16 @@ class Course {
   final String teacherId;   // DB: mId
   final int totalLesson;    // DB: totalLesson
   final String languageId;  // DB: langId
-
-  // --- UI 專用欄位 (DB若無則給預設值) ---
+  
+  // UI & 擴充欄位
   final String description;
   final String teacherName;
-  final String? coverImage; // ✅ 支援圖片網址
+  final String? coverImage;
   final double rating;
   final int studentCount;
-  final DateTime? createdAt;
-  final bool isLive;
-  final bool isFeatured;
-  final List<dynamic> schedules;
+  final DateTime? createdAt; // 修復 watch_history 錯誤
+  final bool isLive;         // 修復 watch_history 錯誤
+  final List<dynamic> schedules; // 修復 watch_history 錯誤
 
   Course({
     required this.id,
@@ -27,7 +27,6 @@ class Course {
     required this.teacherId,
     this.totalLesson = 0,
     this.languageId = 'en',
-    // UI 欄位給予預設值，防止報錯
     this.description = 'No description available',
     this.teacherName = 'Instructor',
     this.coverImage,
@@ -35,11 +34,9 @@ class Course {
     this.studentCount = 0,
     this.createdAt,
     this.isLive = false,
-    this.isFeatured = false,
     this.schedules = const [],
   });
 
-  // 從資料庫 JSON 轉換
   factory Course.fromJson(Map<String, dynamic> json) {
     return Course(
       id: json['cId']?.toString() ?? '',
@@ -54,21 +51,22 @@ class Course {
       teacherName: json['teacherName'] ?? 'Unknown',
       description: json['description'] ?? 'Imported from DB',
       studentCount: int.tryParse(json['studentCount']?.toString() ?? '0') ?? 0,
-      
-      // ✅ 關鍵修正：解析 coverImage
-      coverImage: json['coverImage'], 
+      coverImage: json['coverImage'],
+      createdAt: DateTime.tryParse(json['createDate'] ?? ''),
+      isLive: json['isLive'] == true || json['isLive'] == 1,
     );
   }
 }
 
+// 作業相關模型 (保持不變)
 class Assignment {
   final String id;
   final String courseId;
   final String title;
   final String description;
   final DateTime dueDate;
-  final DateTime createdAt;
-  final String? attachmentUrl;
+  final bool isSubmitted;
+  final String? grade;
 
   Assignment({
     required this.id,
@@ -76,37 +74,48 @@ class Assignment {
     required this.title,
     required this.description,
     required this.dueDate,
-    required this.createdAt,
-    this.attachmentUrl,
+    this.isSubmitted = false,
+    this.grade,
   });
+
+  factory Assignment.fromJson(Map<String, dynamic> json) {
+    return Assignment(
+      id: json['aId']?.toString() ?? '',
+      courseId: json['cId']?.toString() ?? '',
+      title: json['title'] ?? '',
+      description: json['description'] ?? '',
+      dueDate: DateTime.tryParse(json['dueDate'] ?? '') ?? DateTime.now(),
+      isSubmitted: json['isSubmitted'] == true,
+      grade: json['grade'],
+    );
+  }
 }
 
 class AssignmentSubmission {
-  final String id;
-  final String assignmentId;
-  final String studentId;
+  final String subId;
   final String studentName;
-  final DateTime submittedAt;
-  final String? fileUrl;
+  final String fileUrl;
+  final String fileName;
+  final DateTime submitDate;
   final String? grade;
-  final String? feedback;
 
   AssignmentSubmission({
-    required this.id,
-    required this.assignmentId,
-    required this.studentId,
+    required this.subId,
     required this.studentName,
-    required this.submittedAt,
-    this.fileUrl,
+    required this.fileUrl,
+    required this.fileName,
+    required this.submitDate,
     this.grade,
-    this.feedback,
   });
-}
 
-class Schedule {
-  final DateTime date;
-  final String startTime;
-  final String endTime;
-  
-  Schedule({required this.date, required this.startTime, required this.endTime});
+  factory AssignmentSubmission.fromJson(Map<String, dynamic> json) {
+    return AssignmentSubmission(
+      subId: json['subId']?.toString() ?? '',
+      studentName: "${json['fName'] ?? ''} ${json['nName'] ?? ''}".trim(),
+      fileUrl: json['filePath'] ?? '',
+      fileName: json['fileName'] ?? 'File',
+      submitDate: DateTime.tryParse(json['submitDate'] ?? '') ?? DateTime.now(),
+      grade: json['grade'],
+    );
+  }
 }
